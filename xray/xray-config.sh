@@ -1,15 +1,16 @@
 #!/bin/bash
-# MarcScript - Xray Configuration
+# ============================================================
+# MARCSCRIPT - Xray Config Generator
+# ============================================================
 
 source /usr/local/marcscript/lib/common.sh
 
-generate_xray_config() {
-    log_info "Generating Xray configuration..."
-    
-    uuid=$(cat /proc/sys/kernel/random/uuid)
-    echo "$uuid" > /etc/xray/uuid
-    
-    cat > /etc/xray/config.json << XRAYJSON
+log "Generating Xray configuration..."
+
+UUID=$(cat /proc/sys/kernel/random/uuid)
+echo "$UUID" > /etc/xray/uuid
+
+cat > /etc/xray/config.json << XRAYCONF
 {
   "log": {
     "access": "/var/log/xray/access.log",
@@ -22,7 +23,7 @@ generate_xray_config() {
       "listen": "127.0.0.1",
       "protocol": "vmess",
       "settings": {
-        "clients": [{"id": "${uuid}", "alterId": 0}]
+        "clients": [{"id": "${UUID}", "alterId": 0}]
       },
       "streamSettings": {
         "network": "ws",
@@ -35,7 +36,7 @@ generate_xray_config() {
       "protocol": "vless",
       "settings": {
         "decryption": "none",
-        "clients": [{"id": "${uuid}"}]
+        "clients": [{"id": "${UUID}"}]
       },
       "streamSettings": {
         "network": "ws",
@@ -47,23 +48,11 @@ generate_xray_config() {
       "listen": "127.0.0.1",
       "protocol": "trojan",
       "settings": {
-        "clients": [{"password": "${uuid}"}]
+        "clients": [{"password": "${UUID}"}]
       },
       "streamSettings": {
         "network": "ws",
         "wsSettings": {"path": "/trojan-ws"}
-      }
-    },
-    {
-      "port": 30300,
-      "listen": "127.0.0.1",
-      "protocol": "shadowsocks",
-      "settings": {
-        "clients": [{"method": "aes-128-gcm", "password": "${uuid}"}]
-      },
-      "streamSettings": {
-        "network": "ws",
-        "wsSettings": {"path": "/ss-ws"}
       }
     },
     {
@@ -72,7 +61,7 @@ generate_xray_config() {
       "protocol": "vless",
       "settings": {
         "decryption": "none",
-        "clients": [{"id": "${uuid}"}]
+        "clients": [{"id": "${UUID}"}]
       },
       "streamSettings": {
         "network": "grpc",
@@ -84,7 +73,7 @@ generate_xray_config() {
       "listen": "127.0.0.1",
       "protocol": "vmess",
       "settings": {
-        "clients": [{"id": "${uuid}", "alterId": 0}]
+        "clients": [{"id": "${UUID}", "alterId": 0}]
       },
       "streamSettings": {
         "network": "grpc",
@@ -96,23 +85,11 @@ generate_xray_config() {
       "listen": "127.0.0.1",
       "protocol": "trojan",
       "settings": {
-        "clients": [{"password": "${uuid}"}]
+        "clients": [{"password": "${UUID}"}]
       },
       "streamSettings": {
         "network": "grpc",
         "grpcSettings": {"serviceName": "trojan-grpc"}
-      }
-    },
-    {
-      "port": 30310,
-      "listen": "127.0.0.1",
-      "protocol": "shadowsocks",
-      "settings": {
-        "clients": [{"method": "aes-128-gcm", "password": "${uuid}"}]
-      },
-      "streamSettings": {
-        "network": "grpc",
-        "grpcSettings": {"serviceName": "ss-grpc"}
       }
     }
   ],
@@ -130,7 +107,10 @@ generate_xray_config() {
     ]
   }
 }
-XRAYJSON
+XRAYCONF
 
-    log_success "Xray configuration generated"
-}
+# Create database files
+touch /etc/xray/{vmess,vless,trojan,ss}.db
+
+systemctl restart xray 2>/dev/null
+log "Xray configuration complete"

@@ -1,0 +1,42 @@
+#!/bin/bash
+# ============================================================
+# MARCSCRIPT - Add VLess Account
+# ============================================================
+
+source /usr/local/marcscript/lib/common.sh
+
+clear
+echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║${NC}              ${GREEN}CREATE VLESS ACCOUNT${NC}                           ${CYAN}║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+read -p "Username : " user
+read -p "Duration (days) : " days
+
+exp=$(date -d "$days days" +"%Y-%m-%d")
+uuid=$(cat /etc/xray/uuid 2>/dev/null || echo "auto")
+domain=$(cat /etc/xray/domain 2>/dev/null || echo "$MYIP")
+
+# Save to database
+echo "### ${user} ${exp}" >> /etc/xray/vless.db
+
+clear
+echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║${NC}              ${GREEN}VLESS ACCOUNT DETAILS${NC}                          ${CYAN}║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e " ${YELLOW}Protocol${NC}   : VLess WebSocket"
+echo -e " ${YELLOW}Domain${NC}     : ${domain}"
+echo -e " ${YELLOW}Port TLS${NC}   : 443"
+echo -e " ${YELLOW}Port NTLS${NC}  : 80"
+echo -e " ${YELLOW}UUID${NC}       : ${uuid}"
+echo -e " ${YELLOW}Path${NC}       : /vless"
+echo -e " ${YELLOW}Username${NC}   : ${user}"
+echo -e " ${YELLOW}Expired${NC}    : ${exp}"
+echo ""
+echo -e "${CYAN}──────────────────────────────────────────────────────────────${NC}"
+echo -e " ${GREEN}VLess Link:${NC}"
+echo -e " vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&type=ws#${user}"
+echo -e "${CYAN}──────────────────────────────────────────────────────────────${NC}"
+echo ""

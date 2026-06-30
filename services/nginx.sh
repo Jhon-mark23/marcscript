@@ -1,75 +1,66 @@
 #!/bin/bash
-# MarcScript - Nginx Configuration for Xray
+# ============================================================
+# MARCSCRIPT - Nginx Config for Xray
+# ============================================================
 
 source /usr/local/marcscript/lib/common.sh
 
-configure_nginx() {
-    log_info "Configuring Nginx..."
-    
-    domain=$(get_domain)
-    mkdir -p /home/vps/public_html
-    
-    cat > /etc/nginx/conf.d/xray.conf << NGINXCONF
-server {
-    listen 81;
-    server_name _;
-    root /home/vps/public_html;
-    index index.html;
-}
+log "Configuring Nginx for Xray..."
 
+DOMAIN=$(cat /etc/xray/domain 2>/dev/null || echo "$MYIP")
+mkdir -p /home/vps/public_html
+
+# Create nginx config
+cat > /etc/nginx/conf.d/marcscript.conf << NGINXEOF
 server {
     listen 80;
-    listen [::]:80;
-    server_name *.${domain};
+    server_name *.${DOMAIN};
     root /home/vps/public_html;
+    index index.html;
 
-    location = /vmess {
+    # Xray WebSocket paths
+    location /vmess {
+        if (\$http_upgrade != "websocket") { return 404; }
         proxy_pass http://127.0.0.1:23456;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
+        proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 
-    location = /vless {
+    location /vless {
+        if (\$http_upgrade != "websocket") { return 404; }
         proxy_pass http://127.0.0.1:14016;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
+        proxy_set_header Host \$host;
     }
 
-    location = /trojan-ws {
+    location /trojan-ws {
+        if (\$http_upgrade != "websocket") { return 404; }
         proxy_pass http://127.0.0.1:25432;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
+        proxy_set_header Host \$host;
     }
 
-    location = /ss-ws {
-        proxy_pass http://127.0.0.1:30300;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
-    }
-
+    # WebSocket SSH
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
+        proxy_set_header Host \$host;
     }
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-    server_name *.${domain};
+    listen 443 ssl http2;
+    server_name *.${DOMAIN};
     
     ssl_certificate /etc/xray/xray.crt;
     ssl_certificate_key /etc/xray/xray.key;
@@ -78,52 +69,44 @@ server {
     
     root /home/vps/public_html;
 
-    location = /vmess {
+    location /vmess {
+        if (\$http_upgrade != "websocket") { return 404; }
         proxy_pass http://127.0.0.1:23456;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
+        proxy_set_header Host \$host;
     }
 
-    location = /vless {
+    location /vless {
+        if (\$http_upgrade != "websocket") { return 404; }
         proxy_pass http://127.0.0.1:14016;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
+        proxy_set_header Host \$host;
     }
 
-    location = /trojan-ws {
+    location /trojan-ws {
+        if (\$http_upgrade != "websocket") { return 404; }
         proxy_pass http://127.0.0.1:25432;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
+        proxy_set_header Host \$host;
     }
 
-    location = /ss-ws {
-        proxy_pass http://127.0.0.1:30300;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
-    }
-
-    location ^~ /vless-grpc {
+    # gRPC
+    location /vless-grpc {
         grpc_pass grpc://127.0.0.1:24456;
     }
-
-    location ^~ /vmess-grpc {
+    
+    location /vmess-grpc {
         grpc_pass grpc://127.0.0.1:31234;
     }
-
-    location ^~ /trojan-grpc {
+    
+    location /trojan-grpc {
         grpc_pass grpc://127.0.0.1:33456;
-    }
-
-    location ^~ /ss-grpc {
-        grpc_pass grpc://127.0.0.1:30310;
     }
 
     location / {
@@ -131,11 +114,15 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$http_host;
+        proxy_set_header Host \$host;
     }
 }
-NGINXCONF
+NGINXEOF
 
-    nginx -t 2>/dev/null && systemctl restart nginx && systemctl enable nginx
-    log_success "Nginx configured"
-}
+# Remove default config
+rm -f /etc/nginx/sites-enabled/default 2>/dev/null
+
+# Test and restart
+nginx -t 2>/dev/null && systemctl restart nginx && systemctl enable nginx
+
+log "Nginx configured"
