@@ -49,40 +49,93 @@ ensure_ssh_auth() {
 setup_domain() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}              ${YELLOW}🌐 DOMAIN SETUP${NC}                                  ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}              ${YELLOW}🌐 DOMAIN SETUP FOR XRAY${NC}                        ${CYAN}║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
-    # Check if domain already exists
-    if [ -f /root/domain ] || [ -f /etc/xray/domain ]; then
-        DOMAIN=$(cat /etc/xray/domain 2>/dev/null || cat /root/domain 2>/dev/null)
-        echo -e " Domain found: ${GREEN}${DOMAIN}${NC}"
+    # Check if domain file exists and has a REAL domain (not IP)
+    local existing_domain=""
+    if [ -f /etc/xray/domain ]; then
+        existing_domain=$(cat /etc/xray/domain)
+    elif [ -f /root/domain ]; then
+        existing_domain=$(cat /root/domain)
+    fi
+    
+    # Check if existing domain is actually an IP address
+    if [[ "$existing_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo -e " ${RED}⚠ Existing domain file contains IP: ${existing_domain}${NC}"
+        echo -e " ${YELLOW}This is NOT a real domain!${NC}"
+        echo ""
+        existing_domain=""
+    fi
+    
+    # If real domain exists, ask to use it
+    if [ -n "$existing_domain" ]; then
+        echo -e " ${GREEN}✅ Found existing domain: ${existing_domain}${NC}"
         echo ""
         read -p " Use this domain? [Y/n]: " use_existing
+        
         if [[ ! "$use_existing" =~ ^[Nn]$ ]]; then
-            echo "$DOMAIN" > /root/domain
-            echo "$DOMAIN" > /etc/xray/domain
-            echo -e "${GREEN}✅ Using existing domain: ${DOMAIN}${NC}"
+            echo "$existing_domain" > /root/domain
+            echo "$existing_domain" > /etc/xray/domain
+            echo -e "${GREEN}✅ Using domain: ${existing_domain}${NC}"
+            echo -e "${GREEN}✅ Let's Encrypt SSL will be used${NC}"
+            echo ""
+            sleep 2
             return
         fi
     fi
     
-    echo -e " ${YELLOW}Enter your domain for Xray SSL/TLS:${NC}"
-    echo -e " ${YELLOW}(If no domain, use VPS IP for self-signed cert)${NC}"
+    # Ask for new domain
+    echo -e " ${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e " ${YELLOW}║${NC}  Do you have a domain for Xray SSL/TLS?                    ${YELLOW}║${NC}"
+    echo -e " ${YELLOW}║${NC}  Example: vpn.example.com                                 ${YELLOW}║${NC}"
+    echo -e " ${YELLOW}║${NC}                                                          ${YELLOW}║${NC}"
+    echo -e " ${YELLOW}║${NC}  [Y] Yes, I have a domain                                ${YELLOW}║${NC}"
+    echo -e " ${YELLOW}║${NC}  [N] No, use VPS IP (self-signed cert)                   ${YELLOW}║${NC}"
+    echo -e " ${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    read -p " Domain (or press Enter for IP): " DOMAIN
+    read -p " Do you have a domain? [y/N]: " has_domain
     
-    if [ -z "$DOMAIN" ]; then
-        DOMAIN="$MYIP"
-        echo -e "${YELLOW}⚠ No domain entered, using IP: ${DOMAIN}${NC}"
-        echo -e "${YELLOW}⚠ Xray will use self-signed certificate${NC}"
+    if [[ "$has_domain" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo -e " ${YELLOW}Enter your domain (without http:// or https://):${NC}"
+        echo -e " ${YELLOW}Example: vpn.yourdomain.com${NC}"
+        echo ""
+        read -p " Domain: " DOMAIN
+        
+        # Validate domain (must contain at least one dot)
+        if [ -z "$DOMAIN" ]; then
+            echo -e "${RED}❌ No domain entered, using IP instead${NC}"
+            DOMAIN="$MYIP"
+        elif [[ ! "$DOMAIN" =~ \. ]]; then
+            echo -e "${RED}❌ Invalid domain format, using IP instead${NC}"
+            DOMAIN="$MYIP"
+        elif [[ "$DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo -e "${YELLOW}⚠ That looks like an IP address, not a domain${NC}"
+            echo -e "${YELLOW}Using it anyway...${NC}"
+        else
+            echo -e "${GREEN}✅ Domain: $DOMAIN${NC}"
+            echo -e "${GREEN}✅ Let's Encrypt SSL certificate will be used${NC}"
+        fi
     else
-        echo -e "${GREEN}✅ Domain set to: ${DOMAIN}${NC}"
+        echo ""
+        echo -e "${YELLOW}⚠ No domain - Using VPS IP: $MYIP${NC}"
+        echo -e "${YELLOW}⚠ Xray will use self-signed SSL certificate${NC}"
+        echo -e "${YELLOW}⚠ Clients may need to ignore certificate warnings${NC}"
+        DOMAIN="$MYIP"
     fi
     
+    # Save domain
     echo "$DOMAIN" > /root/domain
     echo "$DOMAIN" > /etc/xray/domain
+    
     echo ""
+    echo -e "${CYAN}──────────────────────────────────────────────────────────────${NC}"
+    echo -e " Domain set to: ${GREEN}$DOMAIN${NC}"
+    echo -e "${CYAN}──────────────────────────────────────────────────────────────${NC}"
+    echo ""
+    sleep 2
 }
 
 # ============================================================
